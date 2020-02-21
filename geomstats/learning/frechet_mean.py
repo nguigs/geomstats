@@ -317,6 +317,7 @@ class FrechetMean(BaseEstimator):
         self.epsilon = epsilon
         self.point_type = point_type
         self.method = method
+        self.verbose = verbose
 
     def fit(self, X, y=None, weights=None, verbose=False):
         """Compute the empirical Frechet mean.

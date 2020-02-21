@@ -1537,7 +1537,7 @@ class SpecialOrthogonal(LieGroup, EmbeddedManifold):
                 jacobian = self.matrix_from_rotation_vector(point)
 
         elif point_type == 'matrix':
-            raise NotImplementedError()
+            jacobian = point
 
         return jacobian
 
@@ -1617,7 +1617,7 @@ class SpecialOrthogonal(LieGroup, EmbeddedManifold):
         return tangent_vec
 
     def exponential_barycenter(
-            self, points, weights=None, point_type=None):
+            self, points, weights=None, point_type=None, verbose=False):
         """Compute the group exponential barycenter in SO(n).
 
         This is the Frechet mean of the canonical bi-invariant metric on SO(n).
@@ -1656,9 +1656,7 @@ class SpecialOrthogonal(LieGroup, EmbeddedManifold):
             assert gs.ndim(exp_bar) == 2, gs.ndim(exp_bar)
 
         elif point_type == 'matrix':
-            points = self.rotation_vector_from_matrix(points)
-            exp_bar = self.exponential_barycenter(
-                points, weights, point_type='vector')
-            exp_bar = self.matrix_from_rotation_vector(exp_bar)
+            exp_bar = super(SpecialOrthogonal, self).exponential_barycenter(
+                points, weights, point_type='matrix', verbose=verbose)
 
         return exp_bar

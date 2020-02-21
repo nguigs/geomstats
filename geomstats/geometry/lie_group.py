@@ -214,11 +214,10 @@ class LieGroup(Manifold):
         exp : array-like, shape=[n_samples, {dimension,[n,n]}]
             the computed exponential
         """
-        jacobian = self.jacobian_translation(
-            point=base_point, left_or_right="left", point_type=point_type
-        )
 
         if point_type == "vector":
+            jacobian = self.jacobian_translation(
+                point=base_point, left_or_right="left", point_type=point_type)
             tangent_vec = gs.to_ndarray(tangent_vec, to_ndim=2)
             inv_jacobian = gs.linalg.inv(jacobian)
 
