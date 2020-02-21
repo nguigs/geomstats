@@ -238,7 +238,7 @@ class LieGroup(Manifold):
 
         elif point_type == "matrix":
             tangent_vec = gs.to_ndarray(tangent_vec, to_ndim=3)
-            GeneralLinear.exp(tangent_vec, base_point)
+            return GeneralLinear.exp(tangent_vec, base_point)
 
     def exp(self, tangent_vec, base_point=None, point_type=None):
         """Compute the group exponential at `base_point` of `tangent_vec`.
@@ -442,7 +442,7 @@ class LieGroup(Manifold):
 
         def while_loop_body(iteration, mean, norm):
             logs = self.log(point=points, base_point=mean)
-            tangent_mean = weights * logs / sum_weights
+            tangent_mean = gs.sum(weights * logs / sum_weights, axis=0)
             mean_next = self.exp(
                 tangent_vec=tangent_mean,
                 base_point=mean)
@@ -480,7 +480,7 @@ class LieGroup(Manifold):
         if verbose:
             print('n_iter: {}, final norm: {}'.format(last_iteration, norm))
 
-        return mean
+        return mean[0]
 
     def add_metric(self, metric):
         """Add a metric to the instance's list of metrics."""

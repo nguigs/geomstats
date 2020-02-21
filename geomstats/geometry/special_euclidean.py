@@ -789,6 +789,5 @@ class SpecialEuclidean(LieGroup):
         elif point_type == 'matrix':
             exp_bar = super(SpecialEuclidean, self).exponential_barycenter(
                 points, weights, point_type='matrix', verbose=verbose)
-            print('exp_bar', exp_bar)
 
         return exp_bar
