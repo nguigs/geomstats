@@ -238,7 +238,10 @@ class LieGroup(Manifold):
 
         elif point_type == "matrix":
             tangent_vec = gs.to_ndarray(tangent_vec, to_ndim=3)
-            return GeneralLinear.exp(tangent_vec, base_point)
+            lie_vec = GeneralLinear.compose(
+                tangent_vec,
+                GeneralLinear.inv(base_point))
+            return GeneralLinear.exp(lie_vec, base_point)
 
     def exp(self, tangent_vec, base_point=None, point_type=None):
         """Compute the group exponential at `base_point` of `tangent_vec`.
@@ -348,7 +351,9 @@ class LieGroup(Manifold):
             return log
 
         else:
-            return GeneralLinear.log(point, base_point)
+            return GeneralLinear.compose(
+                GeneralLinear.log(point, base_point),
+                base_point)
 
     def log(self, point, base_point=None, point_type=None):
         """Compute the group logarithm of `point` relative to `base_point`.

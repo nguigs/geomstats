@@ -47,6 +47,8 @@ class GeneralLinear(Matrices):
             The left multiplication of `exp(tangent_vec)` with
             `base_point`.
         """
+        # TODO: this is amiguous whether tangent vec should be in the lie
+        #  algebra or a tangent vector at base_point
         expm = gs.linalg.expm
         if base_point is None:
             return expm(tangent_vec)
