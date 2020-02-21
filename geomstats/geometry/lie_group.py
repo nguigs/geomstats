@@ -3,8 +3,17 @@
 
 import geomstats.backend as gs
 import geomstats.geometry.riemannian_metric as riemannian_metric
+from geomstats.geometry.general_linear import GeneralLinear
 from geomstats.geometry.invariant_metric import InvariantMetric
 from geomstats.geometry.manifold import Manifold
+
+
+EPSILON = 1e-4
+N_CENTERS = 10
+TOLERANCE = 1e-5
+N_REPETITIONS = 20
+N_MAX_ITERATIONS = 32
+N_STEPS = 10
 
 
 def loss(y_pred, y_true, group, metric=None):
@@ -229,7 +238,7 @@ class LieGroup(Manifold):
 
         elif point_type == "matrix":
             tangent_vec = gs.to_ndarray(tangent_vec, to_ndim=3)
-            raise NotImplementedError()
+            GeneralLinear.exp(tangent_vec, base_point)
 
     def exp(self, tangent_vec, base_point=None, point_type=None):
         """Compute the group exponential at `base_point` of `tangent_vec`.
@@ -305,7 +314,7 @@ class LieGroup(Manifold):
             "The group logarithm from the identity is not implemented."
         )
 
-    def log_not_from_identity(self, point, base_point, point_type):
+    def log_not_from_identity(self, point, base_point, point_type=None):
         """Compute the group logarithm of `point` from `base_point`.
 
         Parameters
@@ -319,24 +328,27 @@ class LieGroup(Manifold):
         -------
         tangent_vec : array-like, shape=[n_samples, {dimension,[n,n]}]
         """
-        jacobian = self.jacobian_translation(
-            point=base_point, left_or_right="left", point_type=point_type
-        )
-        point_near_id = self.compose(
-            self.inverse(base_point), point, point_type=point_type
-        )
-        log_from_id = self.log_from_identity(
-            point=point_near_id, point_type=point_type
-        )
+        if point_type is None:
+            point_type = self.default_point_type
 
-        log = gs.einsum(
-            "ni,nij->nj",
-            log_from_id,
-            gs.transpose(jacobian, axes=(0, 2, 1)),
-        )
+        if point_type == 'vector':
+            jacobian = self.jacobian_translation(
+                point=base_point, left_or_right="left", point_type=point_type)
+            point_near_id = self.compose(
+                self.inverse(base_point), point, point_type=point_type)
+            log_from_id = self.log_from_identity(
+                point=point_near_id, point_type=point_type)
 
-        assert gs.ndim(log) == 2
-        return log
+            log = gs.einsum(
+                "ni,nij->nj",
+                log_from_id,
+                gs.transpose(jacobian, axes=(0, 2, 1)))
+
+            assert gs.ndim(log) == 2
+            return log
+
+        else:
+            return GeneralLinear.log(point, base_point)
 
     def log(self, point, base_point=None, point_type=None):
         """Compute the group logarithm of `point` relative to `base_point`.
@@ -396,8 +408,8 @@ class LieGroup(Manifold):
         return result
 
     def exponential_barycenter(
-        self, points, weights=None, point_type=None
-    ):
+            self, points, weights=None, point_type=None, max_iter=32,
+            epsilon=EPSILON, verbose=False):
         """Compute the (weighted) group exponential barycenter of `points`.
 
         Parameters
@@ -406,14 +418,69 @@ class LieGroup(Manifold):
         weights : array-like, shape=[n_samples]
             default is 1 for each point
         point_type : str, {'vector', 'matrix'}
+        epsilon : float
+            tolerence for the norm of the gradient at termination
+        verbose : bool
+            whether to print termination information.
 
         Returns
         -------
         exp_bar : the exponential_barycenter of the given points
         """
-        raise NotImplementedError(
-            "The group exponential barycenter is not implemented."
-        )
+        n_points = points.shape[0]
+        assert n_points > 0
+        weights_shape = (n_points, 1) if point_type == 'vector' else (
+            n_points, 1, 1)
+        if weights is None:
+            weights = gs.ones(weights_shape)
+        sum_weights = gs.sum(weights[:, 0, 0]) if point_type == 'matrix' else (
+            gs.sum(weights[:, 0]))
+
+        def while_loop_cond(iteration, mean, norm):
+            result = ~ gs.isclose(norm, 0.)
+            return result or iteration == 0
+
+        def while_loop_body(iteration, mean, norm):
+            logs = self.log(point=points, base_point=mean)
+            tangent_mean = weights * logs / sum_weights
+            mean_next = self.exp(
+                tangent_vec=tangent_mean,
+                base_point=mean)
+
+            norm = gs.linalg.norm(tangent_mean)
+            sq_dists_between_iterates.append(norm)
+
+            mean = mean_next
+            iteration += 1
+            return [iteration, mean, norm]
+
+        mean = points[0]
+        if point_type == 'vector':
+            mean = gs.to_ndarray(mean, to_ndim=2)
+        if point_type == 'matrix':
+            mean = gs.to_ndarray(mean, to_ndim=3)
+
+        if n_points == 1:
+            return mean
+
+        sq_dists_between_iterates = []
+        iteration = 0
+        norm = 0
+
+        last_iteration, mean, norm = gs.while_loop(
+            lambda i, m, sq: while_loop_cond(i, m, sq),
+            lambda i, m, sq: while_loop_body(i, m, sq),
+            loop_vars=[iteration, mean, norm],
+            maximum_iterations=max_iter)
+
+        if last_iteration == max_iter:
+            print('Maximum number of iterations {} reached.'
+                  'The mean may be inaccurate'.format(max_iter))
+
+        if verbose:
+            print('n_iter: {}, final norm: {}'.format(last_iteration, norm))
+
+        return mean
 
     def add_metric(self, metric):
         """Add a metric to the instance's list of metrics."""

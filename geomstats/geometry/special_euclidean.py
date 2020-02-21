@@ -6,6 +6,7 @@ i.e. the Lie group of rigid transformations in n dimensions.
 import geomstats.backend as gs
 from geomstats.geometry.euclidean import Euclidean
 from geomstats.geometry.invariant_metric import InvariantMetric
+from geomstats.geometry.general_linear import GeneralLinear
 from geomstats.geometry.lie_group import LieGroup
 from geomstats.geometry.special_orthogonal import SpecialOrthogonal
 
@@ -35,7 +36,9 @@ TAYLOR_COEFFS_2_AT_0 = [+ 1. / 6., 0.,
 class SpecialEuclidean(LieGroup):
     """Class for the special euclidean group SE(n).
 
-    i.e. the Lie group of rigid transformations.
+    i.e. the Lie group of rigid transformations. Elements of SE(n) can either
+    be represented as vectors (in 3d) or as matrices in general. The matrix
+    representation corresponds to homogeneous coordinates.
     """
 
     def __init__(self, n, point_type=None, epsilon=0.):
@@ -89,7 +92,10 @@ class SpecialEuclidean(LieGroup):
 
         identity = gs.zeros(self.dimension)
         if self.default_point_type == 'matrix':
-            identity = gs.eye(self.n)
+            identity = gs.hstack(
+                [gs.eye(self.n), gs.zeros((self.n, 1))])
+            identity = gs.concatenate(
+                [identity, gs.zeros((1, self.n + 1))])
         return identity
     identity = property(get_identity)
 
@@ -115,14 +121,19 @@ class SpecialEuclidean(LieGroup):
             point = gs.to_ndarray(point, to_ndim=2)
             n_points, point_dim = point.shape
             belongs = point_dim == self.dimension
+            belongs *= self.rotations.belongs(point[:, :self.n])
             belongs = gs.to_ndarray(belongs, to_ndim=1)
             belongs = gs.to_ndarray(belongs, to_ndim=2, axis=1)
             belongs = gs.tile(belongs, (n_points, 1))
         elif point_type == 'matrix':
             point = gs.to_ndarray(point, to_ndim=3)
-            raise NotImplementedError()
+            n_points, point_dim1, point_dim2 = point.shape
+            belongs = (point_dim1 == point_dim2 == self.n + 1)
+            rotation = point[:, :self.n, :self.n]
+            belongs *= self.rotations.belongs(rotation)
+            belongs = belongs.flatten()
 
-        return belongs
+        return belongs[0] if n_points == 1 else belongs
 
     def regularize(self, point, point_type=None):
         """Regularize a point to the default representation for SE(n).
@@ -157,8 +168,7 @@ class SpecialEuclidean(LieGroup):
                 [regularized_rot_vec, translation], axis=1)
 
         elif point_type == 'matrix':
-            point = gs.to_ndarray(point, to_ndim=3)
-            regularized_point = gs.copy(point)
+            regularized_point = gs.to_ndarray(point, to_ndim=3)
 
         return regularized_point
 
@@ -300,7 +310,7 @@ class SpecialEuclidean(LieGroup):
                                           composition_translation), axis=1)
 
         elif point_type == 'matrix':
-            raise NotImplementedError()
+            composition = GeneralLinear.compose(point_1, point_2)
 
         composition = self.regularize(composition, point_type=point_type)
         return composition
@@ -351,7 +361,7 @@ class SpecialEuclidean(LieGroup):
                 [inverse_rotation, inverse_translation], axis=1)
 
         elif point_type == 'matrix':
-            raise NotImplementedError()
+            inverse_point = GeneralLinear.inv(point)
 
         inverse_point = self.regularize(inverse_point, point_type=point_type)
         return inverse_point
@@ -363,6 +373,7 @@ class SpecialEuclidean(LieGroup):
         Compute the jacobian matrix of the differential
         of the left/right translations from the identity to point in SE(n).
         Currently only implemented for point_type == 'vector'.
+        # TODO(nguigs): implement for matrix, formula p157 in Xavier's thesis
 
         Parameters
         ----------
@@ -430,7 +441,7 @@ class SpecialEuclidean(LieGroup):
             assert gs.ndim(jacobian) == 3
 
         elif point_type == 'matrix':
-            raise NotImplementedError()
+            jacobian = point
 
         return jacobian
 
@@ -515,8 +526,9 @@ class SpecialEuclidean(LieGroup):
 
             group_exp = self.regularize(group_exp, point_type=point_type)
             return group_exp
+
         elif point_type == 'matrix':
-            raise NotImplementedError()
+            return GeneralLinear.exp(tangent_vec)
 
     def log_from_identity(self, point, point_type=None):
         """Compute the group logarithm of the point at the identity.
@@ -606,7 +618,7 @@ class SpecialEuclidean(LieGroup):
             assert gs.ndim(group_log) == 2
 
         elif point_type == 'matrix':
-            raise NotImplementedError()
+            group_log = GeneralLinear.log(point)
 
         return group_log
 
@@ -620,7 +632,6 @@ class SpecialEuclidean(LieGroup):
         point_typ: str, {'vector', 'matrix'}, optional
             default: self.default_point_type
 
-
         Returns
         -------
         random_transfo: array-like,
@@ -630,19 +641,23 @@ class SpecialEuclidean(LieGroup):
         if point_type is None:
             point_type = self.default_point_type
 
-        random_rot_vec = self.rotations.random_uniform(
-            n_samples, point_type=point_type)
         random_translation = self.translations.random_uniform(n_samples)
 
         if point_type == 'vector':
+            random_rot_vec = self.rotations.random_uniform(
+                n_samples, point_type=point_type)
             random_transfo = gs.concatenate(
                 [random_rot_vec, random_translation],
                 axis=1)
 
         elif point_type == 'matrix':
-            raise NotImplementedError()
+            random_transfo = gs.zeros((n_samples, self.n + 1, self.n + 1))
+            random_rotation = self.rotations.random_uniform(
+                n_samples, point_type=point_type)
+            random_transfo[:, :self.n, :self.n] = random_rotation
+            random_transfo[:, :self.n, self.n] = random_translation
+            random_transfo[:, self.n, self.n] = 1
 
-        random_transfo = self.regularize(random_transfo, point_type=point_type)
         return random_transfo
 
     def exponential_matrix(self, rot_vec):
@@ -701,7 +716,7 @@ class SpecialEuclidean(LieGroup):
         return exponential_mat
 
     def exponential_barycenter(
-            self, points, weights=None, point_type=None):
+            self, points, weights=None, point_type=None, verbose=False):
         """Compute the group exponential barycenter in SE(n).
 
         Parameters
@@ -721,21 +736,20 @@ class SpecialEuclidean(LieGroup):
         if point_type is None:
             point_type = self.default_point_type
 
-        n_points = points.shape[0]
-        assert n_points > 0
-
-        if weights is None:
-            weights = gs.ones((n_points, 1))
-
-        weights = gs.to_ndarray(weights, to_ndim=2, axis=1)
-        n_weights, _ = weights.shape
-        assert n_points == n_weights
-
         dim = self.dimension
         rotations = self.rotations
         dim_rotations = rotations.dimension
 
         if point_type == 'vector':
+            n_points = points.shape[0]
+            assert n_points > 0
+
+            if weights is None:
+                weights = gs.ones((n_points, 1))
+
+            weights = gs.to_ndarray(weights, to_ndim=2, axis=1)
+            n_weights, _ = weights.shape
+            assert n_points == n_weights
             rotation_vectors = points[:, :dim_rotations]
             translations = points[:, dim_rotations:dim]
             assert rotation_vectors.shape == (n_points, dim_rotations)
@@ -773,8 +787,8 @@ class SpecialEuclidean(LieGroup):
             exp_bar[0, dim_rotations:dim] = mean_translation
 
         elif point_type == 'matrix':
-            vector_points = self.rotation_vector_from_matrix(points)
-            vector_exp_bar = self.exponential_barycenter(
-                vector_points, weights, point_type='vector')
-            exp_bar = self.matrix_from_rotation_vector(vector_exp_bar)
+            exp_bar = super(SpecialEuclidean, self).exponential_barycenter(
+                points, weights, point_type='matrix', verbose=verbose)
+            print('exp_bar', exp_bar)
+
         return exp_bar
