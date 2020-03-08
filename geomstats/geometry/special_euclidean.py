@@ -92,10 +92,7 @@ class SpecialEuclidean(LieGroup):
 
         identity = gs.zeros(self.dimension)
         if self.default_point_type == 'matrix':
-            identity = gs.hstack(
-                [gs.eye(self.n), gs.zeros((self.n, 1))])
-            identity = gs.concatenate(
-                [identity, gs.zeros((1, self.n + 1))])
+            identity = gs.eye(self.n + 1)
         return identity
     identity = property(get_identity)
 
