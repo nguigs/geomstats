@@ -12,8 +12,8 @@ EPSILON = 1e-6
 
 
 def _default_gradient_descent(
-        group, points, weights=None, max_iter=32, step=1.,
-        epsilon=EPSILON, verbose=False):
+        group, points, weights=None, max_iter=32, step_size=1.,
+        epsilon=EPSILON, verbose=False, **kwargs):
     """Compute the (weighted) group exponential barycenter of `points`.
 
     Parameters
@@ -32,7 +32,7 @@ def _default_gradient_descent(
         Tolerance to reach convergence. The exstrinsic norm of the
         gradient is used as criterion.
         Optional, default: 1e-6.
-    step : float
+    step_size : float
         Learning rate in the gradient descent.
         Optional, default: 1.
     verbose : bool
@@ -65,12 +65,12 @@ def _default_gradient_descent(
             break
         inv_mean = group.inverse(mean)
         centered_points = group.compose(inv_mean, points)
-        logs = group.log(point=centered_points)
-        tangent_mean = step * gs.einsum(
+        logs = group.log(point=centered_points, **kwargs)
+        tangent_mean = step_size * gs.einsum(
             'n, nk...->k...', weights / sum_weights, logs)
         mean_next = group.compose(
             mean,
-            group.exp(tangent_vec=tangent_mean))
+            group.exp(tangent_vec=tangent_mean, **kwargs))
 
         grad_norm = gs.linalg.norm(tangent_mean)
         sq_dists_between_iterates.append(grad_norm)
@@ -129,7 +129,7 @@ class ExponentialBarycenter(BaseEstimator):
         self.point_type = point_type
         self.estimate_ = None
 
-    def fit(self, X, y=None, weights=None):
+    def fit(self, X, y=None, weights=None, **fit_kwargs):
         """Compute the empirical Exponential Barycenter mean.
 
         Parameters
@@ -160,8 +160,8 @@ class ExponentialBarycenter(BaseEstimator):
                 points=X, weights=weights, group=self.group,
                 max_iter=self.max_iter,
                 epsilon=self.epsilon,
-                step=self.step,
-                verbose=self.verbose)
+                step_size=self.step,
+                verbose=self.verbose, **fit_kwargs)
         self.estimate_ = mean
 
         return self
