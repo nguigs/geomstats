@@ -520,14 +520,16 @@ class TestSPDMatrices(geomstats.tests.TestCase):
         point = self.space.random_uniform(n_samples)
         tan_a = self.space.random_tangent_vec_uniform(n_samples, point)
         tan_b = self.space.random_tangent_vec_uniform(n_samples, point)
-
+        tan_a = gs.cast(tan_a, gs.float64)
+        tan_b = gs.cast(tan_b, gs.float64)
+        point = gs.cast(point, gs.float64)
         metric = self.metric_affine
         expected = metric.norm(tan_a, point)
         end_point = metric.exp(tan_b, point)
 
         transported = metric.parallel_transport(tan_a, tan_b, point)
         result = metric.norm(transported, end_point)
-
+        print(expected - result)
         self.assertAllClose(expected, result, atol=1e-4)
 
     def test_squared_dist_bureswasserstein(self):
