@@ -302,10 +302,12 @@ class PreShapeSpace(EmbeddedManifold):
         mat = gs.matmul(Matrices.transpose(point), base_point)
         left, singular_values, right = gs.linalg.svd(mat)
         det = gs.linalg.det(mat)
-        conditionning = (singular_values[..., -2] + gs.sign(det) *
-                       singular_values[..., -1]) / singular_values[..., 0]
+        conditionning = (
+            singular_values[..., -2] + gs.sign(det) *
+            singular_values[..., -1]) / singular_values[..., 0]
         if gs.any(conditionning < 1e-3):
-            logging.warning(f'Singularity Hit, conditionning: {conditionning}')
+            logging.warning(f'Singularity close, conditionning:'
+                            f' {conditionning}')
 
         if gs.any(gs.isclose(
                 singular_values[..., -2]
