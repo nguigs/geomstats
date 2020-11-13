@@ -299,7 +299,7 @@ class TestPreShapeSpace(geomstats.tests.TestCase):
         self.assertAllClose(expected, log)
 
     @geomstats.tests.np_only
-    def test_parallel_transport(self):
+    def test_ladder_parallel_transport(self):
         space = PreShapeSpace(3, 2)
         metric = KendallShapeMetric(3, 2)
         n_samples = 1
@@ -325,7 +325,7 @@ class TestPreShapeSpace(geomstats.tests.TestCase):
         end_point = metric.exp(horizontal_b, base_point)
 
         ladder = metric.ladder_parallel_transport(
-            horizontal_a, horizontal_b, base_point, n_rungs=20,
+            horizontal_a, horizontal_b, base_point, n_rungs=1,
             scheme='pole', alpha=1)
         transported = ladder['transported_tangent_vec']
         end_point_result = ladder['end_point']
@@ -341,6 +341,33 @@ class TestPreShapeSpace(geomstats.tests.TestCase):
         result_angle = metric.inner_product(
             transported, end_vec, end_point)
         self.assertAllClose(expected_angle, result_angle)
+
+    @geomstats.tests.np_only
+    def test_parallel_transport(self):
+        space = PreShapeSpace(3, 2)
+        metric = KendallShapeMetric(3, 2)
+        n_samples = 2
+
+        base_point = space.random_uniform(n_samples)
+        vector_a = gs.random.rand(
+            n_samples, space.k_landmarks, space.m_ambient)
+        vector_b = gs.random.rand(
+            n_samples, space.k_landmarks, space.m_ambient)
+
+        tan_vec_a = space.to_tangent(vector_a, base_point)
+        tan_vec_b = space.to_tangent(vector_b, base_point)
+        horizontal_a = space.horizontal_projection(tan_vec_a, base_point)
+        horizontal_b = space.horizontal_projection(tan_vec_b, base_point)
+
+        ladder = metric.ladder_parallel_transport(
+            horizontal_a, horizontal_b, base_point, n_rungs=1,
+            scheme='pole', alpha=1)
+        expected = ladder['transported_tangent_vec']
+
+        result = metric.parallel_transport(
+            horizontal_a, horizontal_b, base_point, n_steps=500)
+
+        self.assertAllClose(expected, result, atol=3e-5, rtol=1e-2)
 
     def test_dist_extreme_case(self):
         point = self.space.projection(gs.eye(self.k_landmarks, self.m_ambient))

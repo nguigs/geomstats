@@ -576,10 +576,6 @@ class KendallShapeMetric(ProcrustesMetric):
         times = gs.linspace(0, 1, n_steps + 1)
         points = self.geodesic(
             base_point, initial_tangent_vec=horizontal_b)(times)
-        end_point = points[-1]
-        # velocities = gs.einsum('i, ...kl->...ikl', times, horizontal_b)
-        # gamma_dot = self.preshape.metric.parallel_transport(
-        #     velocities, horizontal_b, base_point)
 
         transported = gs.copy(horizontal_a)
         dt = 1. / n_steps
@@ -588,46 +584,23 @@ class KendallShapeMetric(ProcrustesMetric):
             speed = self.preshape.metric.parallel_transport(
                 horizontal_b, i * dt * horizontal_b, base_point)
             coef = self.inner_product(speed, vector, point)
-            long = gs.einsum('..., ...ij->...ij', coef, point)
+            normal = gs.einsum('..., ...ij->...ij', coef, point)
 
-            align = gs.matmul(speed, Matrices.transpose(vector))
-            right = align - Matrices.transpose(align)
-            left = gs.matmul(point, Matrices.transpose(point))
+            align = gs.matmul(Matrices.transpose(speed), vector)
+            right = - align + Matrices.transpose(align)
+            left = gs.matmul(Matrices.transpose(point), point)
             skew_ = gs.linalg.solve_sylvester(left, left, right)
-            vertical_ = gs.matmul(skew_, point)
+            vertical_ = - gs.matmul(point, skew_)
+            return point, vertical_ - normal
 
-            return point, vertical_ - long
-
+        current_point = gs.copy(base_point)
         for time in range(n_steps):
-            current_point = points[..., time, :, :]
-            # current_speed = self.log(
-            #     self.exp(
-            #         time / n_steps * horizontal_b, base_point),
-            #     base_point)
-            #
-            # coefficient = self.inner_product(
-            #     current_speed, transported, current_point)
-            # longitudinal = gs.einsum(
-            #     '..., ...ij->...ij', coefficient, current_point)
-            #
-            # alignment = gs.matmul(
-            #     current_speed, Matrices.transpose(transported))
-            # right_term = alignment - Matrices.transpose(alignment)
-            # left_term = gs.matmul(
-            #     current_point, Matrices.transpose(current_point))
-            # skew = gs.linalg.solve_sylvester(left_term, left_term, right_term)
-            # vertical = gs.matmul(skew, current_point)
-
-            # transported = rk4_step(
-            #     (current_point, transported),
-            #     force=lambda a, b: force(a, b, i=time), dt=1. / n_steps)
             state = (current_point, transported)
-            step = rk4_step(state, lambda a, b: force(a, b, i=time), dt)
-            transported += force(current_point, transported, time)[1] / n_steps
+            transported = rk4_step(
+                state, lambda a, b: force(a, b, i=time), dt)[1]
+            current_point = points[time + 1]
             transported = self.preshape.to_tangent(transported, current_point)
             transported = self.preshape.horizontal_projection(
                 transported, current_point)
 
-        end_point = (
-            points[..., -1, :, :] if tangent_vec_b.ndim == 3 else points[-1])
-        return transported, end_point
+        return transported

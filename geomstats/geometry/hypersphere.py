@@ -541,6 +541,8 @@ class HypersphereMetric(RiemannianMetric):
             Transported tangent vector at exp_(base_point)(tangent_vec_b).
         """
         theta = gs.linalg.norm(tangent_vec_b, axis=-1)
+        mask = theta == 0
+        theta = gs.where(mask, EPSILON, theta)
         normalized_b = gs.einsum('..., ...i->...i', 1 / theta, tangent_vec_b)
         pb = gs.einsum('...i,...i->...', tangent_vec_a, normalized_b)
         p_orth = tangent_vec_a - gs.einsum('..., ...i->...i', pb, normalized_b)
@@ -548,6 +550,10 @@ class HypersphereMetric(RiemannianMetric):
             - gs.einsum('..., ...i->...i', gs.sin(theta) * pb, base_point)\
             + gs.einsum('..., ...i->...i', gs.cos(theta) * pb, normalized_b)\
             + p_orth
+        if gs.any(mask):
+            mask = gs.einsum(
+                '..., ...i -> ...i', mask, gs.ones(transported.shape))
+            transported = gs.where(mask == 1, tangent_vec_a, transported)
         return transported
 
     def christoffels(self, point, point_type='spherical'):

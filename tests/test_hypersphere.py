@@ -775,3 +775,26 @@ class TestHypersphere(geomstats.tests.TestCase):
             one_tan_vec_a, one_tan_vec_b, base_point)
         result = is_isometry(one_tan_vec_a, transported, end_point)
         self.assertTrue(result)
+
+    def test_parallel_transport_zero_vector(self):
+        sphere = Hypersphere(2)
+        n_samples = 4
+
+        base_point = sphere.random_uniform()
+        tan_vec_a = sphere.to_tangent(
+            gs.random.rand(n_samples, 3), base_point)
+        tan_vec_b = gs.zeros((n_samples, 3))
+        result = sphere.metric.parallel_transport(
+            tan_vec_a, tan_vec_b, base_point)
+        self.assertAllClose(result, tan_vec_a)
+
+        tan_vec_a = sphere.to_tangent(
+            gs.random.rand(n_samples + 1, 3), base_point)
+        tan_vec_b = gs.concatenate([tan_vec_b, tan_vec_a[0][None, :]], axis=0)
+        result = sphere.metric.parallel_transport(
+            tan_vec_a, tan_vec_b, base_point)
+        self.assertAllClose(result[:n_samples], tan_vec_a[:n_samples])
+
+        last = sphere.metric.parallel_transport(
+            tan_vec_a[-1], tan_vec_b[-1], base_point)
+        self.assertAllClose(last, result[-1])
