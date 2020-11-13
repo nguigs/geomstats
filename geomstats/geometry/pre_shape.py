@@ -5,7 +5,7 @@ import logging
 import geomstats.backend as gs
 from geomstats.algebra_utils import from_vector_to_diagonal_matrix
 from geomstats.errors import check_tf_error
-from geomstats.integrator import rk4_step
+from geomstats.integrator import rk4_step, euler_step
 from geomstats.geometry.embedded_manifold import EmbeddedManifold
 from geomstats.geometry.hypersphere import Hypersphere
 from geomstats.geometry.matrices import Matrices, MatricesMetric
@@ -305,8 +305,7 @@ class PreShapeSpace(EmbeddedManifold):
         conditionning = (singular_values[..., -2] + gs.sign(det) *
                        singular_values[..., -1]) / singular_values[..., 0]
         if gs.any(conditionning < 1e-3):
-            print(conditionning)
-            raise ValueError('Singularity Hit!')
+            logging.warning(f'Singularity Hit, conditionning: {conditionning}')
 
         if gs.any(gs.isclose(
                 singular_values[..., -2]
@@ -566,7 +565,8 @@ class KendallShapeMetric(ProcrustesMetric):
         return super(KendallShapeMetric, self).log(aligned, base_point)
 
     def parallel_transport(
-            self, tangent_vec_a, tangent_vec_b, base_point, n_steps=10):
+            self, tangent_vec_a, tangent_vec_b, base_point, n_steps=10,
+            step='rk4'):
 
         horizontal_a = self.preshape.horizontal_projection(
             tangent_vec_a, base_point)
@@ -578,7 +578,9 @@ class KendallShapeMetric(ProcrustesMetric):
             base_point, initial_tangent_vec=horizontal_b)(times)
 
         transported = gs.copy(horizontal_a)
+        current_point = gs.copy(base_point)
         dt = 1. / n_steps
+        step_function = euler_step if step == 'euler' else rk4_step
 
         def force(point, vector, i):
             speed = self.preshape.metric.parallel_transport(
@@ -593,10 +595,9 @@ class KendallShapeMetric(ProcrustesMetric):
             vertical_ = - gs.matmul(point, skew_)
             return point, vertical_ - normal
 
-        current_point = gs.copy(base_point)
         for time in range(n_steps):
             state = (current_point, transported)
-            transported = rk4_step(
+            transported = step_function(
                 state, lambda a, b: force(a, b, i=time), dt)[1]
             current_point = points[time + 1]
             transported = self.preshape.to_tangent(transported, current_point)
