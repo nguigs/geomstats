@@ -298,6 +298,50 @@ class TestPreShapeSpace(geomstats.tests.TestCase):
         expected = self.space.horizontal_projection(tangent_vec, base_point)
         self.assertAllClose(expected, log)
 
+    @geomstats.tests.np_only
+    def test_parallel_transport(self):
+        space = PreShapeSpace(3, 2)
+        metric = KendallShapeMetric(3, 2)
+        n_samples = 1
+
+        def is_isometry(tan_a, trans_a, endpoint):
+            is_tangent = space.is_tangent(trans_a, endpoint)
+            is_equinormal = gs.isclose(
+                self.shape_metric.norm(trans_a, endpoint),
+                self.shape_metric.norm(tan_a, base_point))
+            return gs.logical_and(is_tangent, is_equinormal)
+
+        base_point = space.random_uniform(n_samples)
+        vector_a = gs.random.rand(
+            n_samples, space.k_landmarks, space.m_ambient)
+        vector_b = gs.random.rand(
+            n_samples, space.k_landmarks, space.m_ambient)
+
+        tan_vec_a = space.to_tangent(vector_a, base_point)
+        tan_vec_b = space.to_tangent(vector_b, base_point)
+        horizontal_a = space.horizontal_projection(tan_vec_a, base_point)
+        horizontal_b = space.horizontal_projection(tan_vec_b, base_point)
+
+        end_point = metric.exp(horizontal_b, base_point)
+
+        ladder = metric.ladder_parallel_transport(
+            horizontal_a, horizontal_b, base_point, n_rungs=20,
+            scheme='pole', alpha=1)
+        transported = ladder['transported_tangent_vec']
+        end_point_result = ladder['end_point']
+
+        self.assertAllClose(end_point, end_point_result)
+        result = is_isometry(horizontal_a, transported, end_point)
+        self.assertTrue(gs.all(result))
+
+        expected_angle = metric.inner_product(
+            horizontal_a, horizontal_b, base_point)
+        end_vec = metric.log(metric.exp(
+            2 * horizontal_b, base_point), end_point)
+        result_angle = metric.inner_product(
+            transported, end_vec, end_point)
+        self.assertAllClose(expected_angle, result_angle)
+
     def test_dist_extreme_case(self):
         point = self.space.projection(gs.eye(self.k_landmarks, self.m_ambient))
         result = self.shape_metric.dist(point, point)
