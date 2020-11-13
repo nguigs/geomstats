@@ -38,7 +38,6 @@ class PreShapeSpace(EmbeddedManifold):
             Applications.”
             Journal of Mathematical Imaging and Vision 62, no. 4 549–59.
             https://doi.org/10.1007/s10851-020-00945-w.
-
     """
 
     def __init__(self, k_landmarks, m_ambient):
